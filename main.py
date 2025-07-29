@@ -287,4 +287,4 @@ def health_check():
 if __name__ == '__main__':
     print("Starting Aseema Educational AI Assistant...")
     print("Service available 24/7 for student support")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0')
