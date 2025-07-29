@@ -17,7 +17,7 @@ from io import BytesIO
 
 # AI services
 from groq import Groq
-from gtts import gTTS
+import pyttsx3  # Replace gTTS with pyttsx3
 import elevenlabs
 from elevenlabs.client import ElevenLabs
 
@@ -58,6 +58,37 @@ class EducationalAIAssistant:
         self.groq_client = Groq(api_key=GROQ_API_KEY)
         if ELEVENLABS_API_KEY:
             self.elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+        
+        # Initialize pyttsx3 engine
+        self.tts_engine = pyttsx3.init()
+        self._configure_tts_engine()
+        
+    def _configure_tts_engine(self):
+        """Configure pyttsx3 engine settings"""
+        try:
+            # Get available voices
+            voices = self.tts_engine.getProperty('voices')
+            
+            # Set voice (prefer female voice for educational content)
+            if voices:
+                for voice in voices:
+                    if 'female' in voice.name.lower() or 'zira' in voice.name.lower():
+                        self.tts_engine.setProperty('voice', voice.id)
+                        break
+                else:
+                    # If no female voice found, use the first available voice
+                    self.tts_engine.setProperty('voice', voices[0].id)
+            
+            # Set speech rate (words per minute)
+            self.tts_engine.setProperty('rate', 180)  # Slightly slower for educational content
+            
+            # Set volume (0.0 to 1.0)
+            self.tts_engine.setProperty('volume', 0.9)
+            
+            logging.info("pyttsx3 engine configured successfully")
+            
+        except Exception as e:
+            logging.error(f"Error configuring pyttsx3 engine: {e}")
         
     def transcribe_audio(self, audio_filepath):
         """Convert speech to text using Groq Whisper"""
@@ -110,21 +141,34 @@ class EducationalAIAssistant:
             logging.error(f"Vision analysis error: {e}")
             return "I'm sorry, I encountered an error while processing your request. Please try again."
     
-    def text_to_speech_gtts(self, text, output_path):
-        """Convert text to speech using gTTS"""
+    def text_to_speech_pyttsx3(self, text, output_path):
+        """Convert text to speech using pyttsx3 (offline)"""
         try:
-            tts = gTTS(text=text, lang='en', slow=False)
-            tts.save(output_path)
-            return output_path
+            # Clean the text for better speech output
+            cleaned_text = text.replace('\n', ' ').replace('\t', ' ')
+            cleaned_text = ' '.join(cleaned_text.split())  # Remove extra whitespace
+            
+            # Save to file
+            self.tts_engine.save_to_file(cleaned_text, output_path)
+            self.tts_engine.runAndWait()
+            
+            # Check if file was created
+            if os.path.exists(output_path):
+                logging.info(f"Audio file created successfully: {output_path}")
+                return output_path
+            else:
+                logging.error("Audio file was not created")
+                return None
+                
         except Exception as e:
-            logging.error(f"gTTS error: {e}")
+            logging.error(f"pyttsx3 error: {e}")
             return None
     
     def text_to_speech_elevenlabs(self, text, output_path):
         """Convert text to speech using ElevenLabs (if API key available)"""
         try:
             if not hasattr(self, 'elevenlabs_client'):
-                return self.text_to_speech_gtts(text, output_path)
+                return self.text_to_speech_pyttsx3(text, output_path)
                 
             audio = self.elevenlabs_client.generate(
                 text=text,
@@ -136,8 +180,8 @@ class EducationalAIAssistant:
             return output_path
         except Exception as e:
             logging.error(f"ElevenLabs error: {e}")
-            # Fallback to gTTS
-            return self.text_to_speech_gtts(text, output_path)
+            # Fallback to pyttsx3
+            return self.text_to_speech_pyttsx3(text, output_path)
 
 # Initialize the AI assistant
 ai_assistant = EducationalAIAssistant()
@@ -204,10 +248,10 @@ def voice_chat():
         ai_response = ai_assistant.analyze_with_vision(transcribed_text, image_path)
         
         # Convert response to speech
-        response_audio_filename = f"response_{datetime.now().timestamp()}.mp3"
+        response_audio_filename = f"response_{datetime.now().timestamp()}.wav"  # Changed to .wav for pyttsx3
         response_audio_path = os.path.join(app.config['AUDIO_FOLDER'], response_audio_filename)
         
-        # Use ElevenLabs if available, otherwise gTTS
+        # Use ElevenLabs if available, otherwise pyttsx3
         audio_output = ai_assistant.text_to_speech_elevenlabs(ai_response, response_audio_path)
         
         # Clean up uploaded files
@@ -235,7 +279,15 @@ def serve_audio(filename):
     try:
         audio_path = os.path.join(app.config['AUDIO_FOLDER'], filename)
         if os.path.exists(audio_path):
-            return send_file(audio_path, mimetype='audio/mpeg')
+            # Determine MIME type based on file extension
+            if filename.endswith('.wav'):
+                mimetype = 'audio/wav'
+            elif filename.endswith('.mp3'):
+                mimetype = 'audio/mpeg'
+            else:
+                mimetype = 'audio/wav'  # Default to wav
+                
+            return send_file(audio_path, mimetype=mimetype)
         else:
             return jsonify({'error': 'Audio file not found'}), 404
     except Exception as e:
