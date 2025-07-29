@@ -5,6 +5,7 @@ import base64
 import logging
 from datetime import datetime
 import json
+import asyncio
 
 # Import your existing modules
 from dotenv import load_dotenv
@@ -17,7 +18,7 @@ from io import BytesIO
 
 # AI services
 from groq import Groq
-from gtts import gTTS
+import edge_tts  # Replacing gTTS with edge-tts
 import elevenlabs
 from elevenlabs.client import ElevenLabs
 
@@ -110,21 +111,41 @@ class EducationalAIAssistant:
             logging.error(f"Vision analysis error: {e}")
             return "I'm sorry, I encountered an error while processing your request. Please try again."
     
-    def text_to_speech_gtts(self, text, output_path):
-        """Convert text to speech using gTTS"""
+    async def text_to_speech_edge_tts(self, text, output_path, voice="en-US-JennyNeural"):
+        """Convert text to speech using Edge TTS"""
         try:
-            tts = gTTS(text=text, lang='en', slow=False)
-            tts.save(output_path)
+            # Create Edge TTS communication object
+            communicate = edge_tts.Communicate(text, voice)
+            
+            # Save the audio file
+            await communicate.save(output_path)
             return output_path
         except Exception as e:
-            logging.error(f"gTTS error: {e}")
+            logging.error(f"Edge TTS error: {e}")
+            return None
+    
+    def text_to_speech_edge_tts_sync(self, text, output_path, voice="en-US-JennyNeural"):
+        """Synchronous wrapper for Edge TTS"""
+        try:
+            # Run the async function in the event loop
+            if asyncio.get_event_loop().is_running():
+                # If we're already in an event loop, create a new thread
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.text_to_speech_edge_tts(text, output_path, voice))
+                    return future.result()
+            else:
+                # If no event loop is running, we can use asyncio.run
+                return asyncio.run(self.text_to_speech_edge_tts(text, output_path, voice))
+        except Exception as e:
+            logging.error(f"Edge TTS sync wrapper error: {e}")
             return None
     
     def text_to_speech_elevenlabs(self, text, output_path):
         """Convert text to speech using ElevenLabs (if API key available)"""
         try:
             if not hasattr(self, 'elevenlabs_client'):
-                return self.text_to_speech_gtts(text, output_path)
+                return self.text_to_speech_edge_tts_sync(text, output_path)
                 
             audio = self.elevenlabs_client.generate(
                 text=text,
@@ -136,8 +157,8 @@ class EducationalAIAssistant:
             return output_path
         except Exception as e:
             logging.error(f"ElevenLabs error: {e}")
-            # Fallback to gTTS
-            return self.text_to_speech_gtts(text, output_path)
+            # Fallback to Edge TTS
+            return self.text_to_speech_edge_tts_sync(text, output_path)
 
 # Initialize the AI assistant
 ai_assistant = EducationalAIAssistant()
@@ -207,7 +228,7 @@ def voice_chat():
         response_audio_filename = f"response_{datetime.now().timestamp()}.mp3"
         response_audio_path = os.path.join(app.config['AUDIO_FOLDER'], response_audio_filename)
         
-        # Use ElevenLabs if available, otherwise gTTS
+        # Use ElevenLabs if available, otherwise Edge TTS
         audio_output = ai_assistant.text_to_speech_elevenlabs(ai_response, response_audio_path)
         
         # Clean up uploaded files
@@ -284,7 +305,33 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
+# Route to get available Edge TTS voices (optional - for voice selection feature)
+@app.route('/voices')
+def get_voices():
+    """Get available Edge TTS voices"""
+    try:
+        # Get list of available voices
+        voices = asyncio.run(edge_tts.list_voices())
+        
+        # Filter for English voices and format for frontend
+        english_voices = []
+        for voice in voices:
+            if voice['Locale'].startswith('en'):
+                english_voices.append({
+                    'name': voice['Name'],
+                    'display_name': voice['FriendlyName'],
+                    'gender': voice['Gender'],
+                    'locale': voice['Locale']
+                })
+        
+        return jsonify({'voices': english_voices})
+    
+    except Exception as e:
+        logging.error(f"Voice listing error: {e}")
+        return jsonify({'error': 'Could not fetch voices'}), 500
+
 if __name__ == '__main__':
     print("Starting Aseema Educational AI Assistant...")
     print("Service available 24/7 for student support")
+    print("Using Edge TTS for high-quality voice synthesis")
     app.run(debug=True, host='0.0.0.0')
