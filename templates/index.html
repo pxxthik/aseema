@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -377,6 +378,7 @@
                 opacity: 0;
                 transform: translateY(30px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -384,23 +386,47 @@
         }
 
         @keyframes pulse {
-            0%, 100% { transform: scale(1.1); }
-            50% { transform: scale(1.15); }
+
+            0%,
+            100% {
+                transform: scale(1.1);
+            }
+
+            50% {
+                transform: scale(1.15);
+            }
         }
 
         @keyframes glow {
-            0%, 100% { box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4); }
-            50% { box-shadow: 0 15px 60px rgba(102, 126, 234, 0.6); }
+
+            0%,
+            100% {
+                box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 15px 60px rgba(102, 126, 234, 0.6);
+            }
         }
 
         @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @keyframes bounce {
-            from { transform: translateY(0); }
-            to { transform: translateY(-5px); }
+            from {
+                transform: translateY(0);
+            }
+
+            to {
+                transform: translateY(-5px);
+            }
         }
 
         @keyframes messageSlide {
@@ -408,6 +434,7 @@
                 opacity: 0;
                 transform: translateX(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateX(0);
@@ -418,27 +445,28 @@
             .main-container {
                 padding: 0 1rem;
             }
-            
+
             .voice-section {
                 padding: 2rem;
             }
-            
+
             .voice-orb {
                 width: 150px;
                 height: 150px;
             }
-            
+
             .mic-icon {
                 width: 50px;
                 height: 50px;
             }
-            
+
             .header h1 {
                 font-size: 2rem;
             }
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <h1>🎓 Aseema AI Assistant</h1>
@@ -449,13 +477,14 @@
         <div class="voice-section">
             <div id="voiceOrb" class="voice-orb" onclick="toggleRecording()">
                 <svg class="mic-icon" viewBox="0 0 24 24" fill="white">
-                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                    <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                    <path
+                        d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
                 </svg>
             </div>
-            
+
             <div id="voiceStatus" class="voice-status">Tap to start speaking</div>
-            
+
             <div class="file-upload-section">
                 <input type="file" id="imageInput" class="file-input" accept="image/*">
                 <label for="imageInput" class="file-upload-btn">
@@ -505,7 +534,8 @@
             </div>
             <div id="textChatContainer" class="chat-container"></div>
             <div class="text-input-group">
-                <input type="text" id="textInput" class="text-input" placeholder="Type your question..." onkeypress="handleTextEnter(event)">
+                <input type="text" id="textInput" class="text-input" placeholder="Type your question..."
+                    onkeypress="handleTextEnter(event)">
                 <button class="send-btn" onclick="sendTextMessage()">Send</button>
             </div>
         </div>
@@ -516,6 +546,7 @@
     </div>
 
     <script>
+        let audioElement = new Audio();
         let isRecording = false;
         let mediaRecorder;
         let audioChunks = [];
@@ -561,7 +592,7 @@
         async function sendVoiceMessage(audioBlob) {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.wav');
-            
+
             const imageInput = document.getElementById('imageInput');
             if (imageInput.files[0]) {
                 formData.append('image', imageInput.files[0]);
@@ -575,22 +606,24 @@
 
                 const data = await response.json();
                 const status = document.getElementById('voiceStatus');
-                
+
                 if (data.error) {
                     status.textContent = 'Error: ' + data.error;
                 } else {
                     status.textContent = 'Playing response...';
-                    
-                    // Play audio response
+
                     if (data.audio_response_url) {
-                        const audio = new Audio(data.audio_response_url);
-                        audio.play();
-                        audio.onended = () => {
-                            document.getElementById('voiceStatus').textContent = 'Tap to start speaking';
-                        };
+                        // Set source and play
+                        audioElement.src = data.audio_response_url;
+                        audioElement.load();
+                        audioElement.play().then(() => {
+                            status.textContent = 'Tap to start speaking';
+                        }).catch(err => {
+                            console.error("Playback failed:", err);
+                            status.textContent = 'Audio playback blocked. Tap again to retry.';
+                        });
                     }
-                    
-                    // Clear image input after use
+
                     imageInput.value = '';
                 }
             } catch (error) {
@@ -623,18 +656,18 @@
                 },
                 body: JSON.stringify({ message: message })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    addMessageToChat('Sorry, I encountered an error. Please try again.', 'ai');
-                } else {
-                    addMessageToChat(data.response, 'ai');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                addMessageToChat('Connection error. Please check your internet and try again.', 'ai');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        addMessageToChat('Sorry, I encountered an error. Please try again.', 'ai');
+                    } else {
+                        addMessageToChat(data.response, 'ai');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    addMessageToChat('Connection error. Please check your internet and try again.', 'ai');
+                });
         }
 
         function handleTextEnter(event) {
@@ -655,7 +688,7 @@
         // Quick action functions
         function sendQuickVoice(message) {
             document.getElementById('voiceStatus').textContent = `Processing: "${message}"`;
-            
+
             fetch('/chat', {
                 method: 'POST',
                 headers: {
@@ -663,18 +696,18 @@
                 },
                 body: JSON.stringify({ message: message })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    document.getElementById('voiceStatus').textContent = 'Error occurred';
-                } else {
-                    document.getElementById('voiceStatus').textContent = 'Got it! How can I help you further?';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('voiceStatus').textContent = 'Connection error';
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('voiceStatus').textContent = 'Error occurred';
+                    } else {
+                        document.getElementById('voiceStatus').textContent = 'Got it! How can I help you further?';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('voiceStatus').textContent = 'Connection error';
+                });
         }
 
         function clearHistory() {
@@ -687,18 +720,19 @@
         }
 
         // Close text chat when clicking outside
-        document.getElementById('textChatOverlay').addEventListener('click', function(e) {
+        document.getElementById('textChatOverlay').addEventListener('click', function (e) {
             if (e.target === this) {
                 closeTextChat();
             }
         });
 
         // Initialize with welcome
-        window.addEventListener('load', function() {
+        window.addEventListener('load', function () {
             setTimeout(() => {
                 addMessageToChat('Hello! I\'m your AI learning assistant. I\'m here 24/7 to help with your studies!', 'ai');
             }, 1000);
         });
     </script>
 </body>
+
 </html>
